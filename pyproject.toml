@@ -1,0 +1,65 @@
+[project]
+name = "asynchedging"
+version = "1.1.1"
+description = "Asyncio utilities for racing and hedged requests"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Joey Feldberg" }]
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pyright~=1.1.403",
+  "pytest~=8.4.1",
+  "pytest-asyncio~=1.1.0",
+  "ruff~=0.12.08",
+]
+
+
+[tool.pyright]
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 120
+select = ["ALL"]
+ignore = [
+  "D105",
+  "D107",
+  "D203",
+  "D212",
+  "UP006",
+  "UP007",
+  "D400",
+  "D406",
+  "D407",
+  "PLC1901",
+  "UP035",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["D103", "T201", "TRY003", "EM102"]
+"test_*" = [
+  "S101",    # asserts allowed in tests
+  "ARG",     # Unused function args -> fixtures nevertheless are functionally relevant
+  "FBT",     # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
+  "PLR2004", # Magic value used in comparison
+  "S311",    # Standard pseudo-random generators are not suitable for cryptographic purposes
+  "D100",
+  "D103",
+  "EM101",
+  "INP001",
+]
+
+[project.urls]
+Repository = "https://github.com/joeyfeldberg/asynchedging"
+Homepage = "https://github.com/joeyfeldberg/asynchedging"
+
+[tool.setuptools]
+packages = ["asynchedging"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
