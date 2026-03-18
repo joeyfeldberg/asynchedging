@@ -76,3 +76,92 @@ async def test_race_respects_accept_predicate() -> None:
     result, info = await race(coros_with_delays, accept=_accept_non_empty)
     assert result == "ok", "Expected 'ok' to be the winning result"
     assert info.index == 1, "Expected index of winning task to be 1"
+
+
+async def test_race_parent_cancellation_cancels_all_started_children() -> None:
+    all_started = asyncio.Event()
+    all_cancelled = asyncio.Event()
+    started: list[str] = []
+    cancelled: list[str] = []
+    block = asyncio.Event()
+
+    async def worker(name: str) -> str:
+        started.append(name)
+        if len(started) == 3:
+            all_started.set()
+
+        try:
+            await block.wait()
+        except asyncio.CancelledError:
+            cancelled.append(name)
+            if len(cancelled) == 3:
+                all_cancelled.set()
+            raise
+
+        return name
+
+    task = asyncio.create_task(race([worker("a"), worker("b"), worker("c")]))
+
+    await asyncio.wait_for(all_started.wait(), timeout=0.1)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    await asyncio.wait_for(all_cancelled.wait(), timeout=0.1)
+    assert sorted(cancelled) == ["a", "b", "c"]
+
+
+async def test_race_success_keeps_pending_tasks_when_cancel_pending_disabled() -> None:
+    loser_started = asyncio.Event()
+    loser_completed = asyncio.Event()
+    loser_cancelled = asyncio.Event()
+    allow_loser_to_finish = asyncio.Event()
+
+    async def winner() -> str:
+        await asyncio.sleep(0)
+        return "winner"
+
+    async def loser() -> str:
+        loser_started.set()
+        try:
+            await allow_loser_to_finish.wait()
+        except asyncio.CancelledError:
+            loser_cancelled.set()
+            raise
+
+        loser_completed.set()
+        return "loser"
+
+    result, info = await race([winner(), loser()], cancel_pending=False)
+
+    assert result == "winner"
+    assert info.index == 0
+    assert loser_started.is_set()
+    assert not loser_cancelled.is_set()
+
+    allow_loser_to_finish.set()
+    await asyncio.wait_for(loser_completed.wait(), timeout=0.1)
+
+
+async def test_race_timeout_cancels_pending_children() -> None:
+    cancelled = 0
+    all_cancelled = asyncio.Event()
+    block = asyncio.Event()
+
+    async def worker() -> str:
+        nonlocal cancelled
+        try:
+            await block.wait()
+        except asyncio.CancelledError:
+            cancelled += 1
+            if cancelled == 2:
+                all_cancelled.set()
+            raise
+
+        return "done"
+
+    with pytest.raises(TimeoutError):
+        await race([worker(), worker()], total_timeout_s=0.01)
+
+    await asyncio.wait_for(all_cancelled.wait(), timeout=0.1)

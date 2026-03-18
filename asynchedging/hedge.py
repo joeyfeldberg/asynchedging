@@ -125,6 +125,9 @@ async def race[T](
     except TimeoutError:
         await _cancel_tasks(racing_tasks, reason="Total timeout reached")
         raise
+    except BaseException:
+        await _cancel_tasks(racing_tasks, reason="Race exited before completion")
+        raise
 
     msg = "All tasks failed or were rejected"
     raise AllTasksFailedError(msg, errors)

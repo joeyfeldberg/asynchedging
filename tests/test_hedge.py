@@ -88,3 +88,37 @@ async def test_hedge_respects_accept_predicate() -> None:
     result, info = await hedge(factory, delays_s=[0.01], accept=_accept_non_empty)
     assert result == "ok"
     assert info.index == 1
+
+
+async def test_hedge_parent_cancellation_prevents_delayed_branch_start() -> None:
+    primary_started = asyncio.Event()
+    delayed_started = asyncio.Event()
+    block = asyncio.Event()
+
+    def factory_gen() -> Callable[[], Coroutine[Any, Any, str]]:
+        started = 0
+
+        async def factory() -> str:
+            nonlocal started
+            started += 1
+            if started == 1:
+                primary_started.set()
+            else:
+                delayed_started.set()
+
+            await block.wait()
+            return "done"
+
+        return factory
+
+    task = asyncio.create_task(hedge(factory_gen(), delays_s=[0.05]))
+
+    await asyncio.wait_for(primary_started.wait(), timeout=0.1)
+    await asyncio.sleep(0.01)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(delayed_started.wait(), timeout=0.08)
