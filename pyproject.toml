@@ -1,6 +1,6 @@
 [project]
 name = "asynchedging"
-version = "1.1.1"
+version = "1.1.2"
 description = "Asyncio utilities for racing and hedged requests"
 readme = "README.md"
 requires-python = ">=3.13"
